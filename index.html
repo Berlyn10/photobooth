@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Berlyn's Wedding Photobooth</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Dancing+Script&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <!-- Splash Screen -->
+  <div id="splashScreen" class="splash-screen">
+    <div class="splash-content">
+      <h1>Welcome to Berlyn & Alex's Wedding Photobooth</h1>
+      <button id="startBtn">Let’s Start!</button>
+    </div>
+  </div>
+
+  <div class="main-layout" style="display: none">
+    <div class="left-panel">
+      <h1>💍 Berlyn's Wedding Photobooth</h1>
+
+      <p class="progress-indicator">1. Pick a filter → 2. Pose! → 3. Snap! → 4. Download or Try Again</p>
+
+      <div id="countdown" class="countdown">3</div>
+
+      <div class="video-wrapper">
+        <video id="video" autoplay muted playsinline></video>
+        <img id="liveFilterOverlay" class="overlay" src="my-filter.png" alt="Live Filter">
+        <canvas id="canvas" width="540" height="960"></canvas>
+      </div>
+
+      <div class="filter-thumbnails">
+        <img src="my-filter.png" data-src="my-filter.png" class="filter-thumb active">
+        <img src="filter2.png" data-src="filter2.png" class="filter-thumb">
+      </div>
+
+      <input id="guestMessage" type="text" placeholder="Leave a short message..." maxlength="100"/>
+
+      <div class="buttons">
+        <button id="snap">📸 Snap</button>
+        <button id="retake" style="display: none;">🔄 Try Again</button>
+        <a id="downloadLink" download="photo.png" style="display: none;">⬇️ Download</a>
+      </div>
+
+      <p id="confirmationMessage" class="confirmation" style="display: none;">✅ Your photo is saved below 👇</p>
+    </div>
+
+    <div class="right-panel">
+      <h2>📷 Photo Gallery</h2>
+      <div id="gallery" class="gallery"></div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    With love, Berlyn & Alex — 25 May 2025 💖
+  </footer>
+
+  <div id="toast" class="toast">Photo saved to gallery! ✅</div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const video = document.getElementById('video');
+      const canvas = document.getElementById('canvas');
+      const snapButton = document.getElementById('snap');
+      const retakeButton = document.getElementById('retake');
+      const downloadLink = document.getElementById('downloadLink');
+      const countdownEl = document.getElementById('countdown');
+      const gallery = document.getElementById('gallery');
+      const liveFilterOverlay = document.getElementById('liveFilterOverlay');
+      const confirmationMessage = document.getElementById('confirmationMessage');
+      const guestMessageInput = document.getElementById('guestMessage');
+      const filterThumbs = document.querySelectorAll('.filter-thumb');
+      const toast = document.getElementById('toast');
+
+      let selectedFilter = 'my-filter.png';
+
+      document.getElementById("startBtn").addEventListener("click", () => {
+        document.getElementById("splashScreen").style.display = "none";
+        document.querySelector(".main-layout").style.display = "flex";
+      });
+
+      navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 540 },
+          height: { ideal: 960 },
+          facingMode: "user"
+        }
+      })
+      .then(stream => {
+        video.srcObject = stream;
+      })
+      .catch(err => {
+        console.error("Camera access error:", err);
+        alert("Please allow camera access to use the photobooth.");
+      });
+
+      filterThumbs.forEach(thumb => {
+        thumb.addEventListener('click', () => {
+          filterThumbs.forEach(t => t.classList.remove('active'));
+          thumb.classList.add('active');
+          selectedFilter = thumb.dataset.src;
+          liveFilterOverlay.src = selectedFilter;
+        });
+      });
+
+      function startCountdown(callback) {
+        let count = 3;
+        countdownEl.style.display = "block";
+        countdownEl.textContent = count;
+
+        const interval = setInterval(() => {
+          count--;
+          countdownEl.textContent = count;
+          if (count === 0) {
+            clearInterval(interval);
+            countdownEl.style.display = "none";
+            callback();
+          }
+        }, 1000);
+      }
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add("show");
+        setTimeout(() => {
+          toast.classList.remove("show");
+        }, 3000);
+      }
+
+      snapButton.addEventListener('click', () => {
+        confirmationMessage.style.display = "none";
+
+        startCountdown(() => {
+          const context = canvas.getContext('2d');
+          context.save();
+          context.scale(-1, 1);
+          context.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+          context.restore();
+
+          const overlayImage = new Image();
+          overlayImage.src = selectedFilter;
+
+          overlayImage.onload = () => {
+            context.drawImage(overlayImage, 0, 0, canvas.width, canvas.height);
+
+            const photoData = canvas.toDataURL('image/png');
+            downloadLink.href = photoData;
+
+            video.style.display = "none";
+            liveFilterOverlay.style.display = "none";
+            canvas.style.display = "block";
+            snapButton.style.display = "none";
+            downloadLink.style.display = "inline-block";
+            retakeButton.style.display = "inline-block";
+            confirmationMessage.style.display = "block";
+
+            const imgContainer = document.createElement('div');
+            imgContainer.classList.add('gallery-item');
+
+            const img = document.createElement('img');
+            img.src = photoData;
+
+            const msg = document.createElement('p');
+            msg.textContent = guestMessageInput.value || "(No message)";
+
+            img.style.border = "none";
+            imgContainer.appendChild(img);
+            imgContainer.appendChild(msg);
+            gallery.appendChild(imgContainer);
+            img.scrollIntoView({ behavior: "smooth", block: "start" });
+
+            guestMessageInput.value = "";
+            showToast("✅ Your photo was added to the gallery!");
+          };
+        });
+      });
+
+      retakeButton.addEventListener('click', () => {
+        canvas.style.display = "none";
+        video.style.display = "block";
+        liveFilterOverlay.style.display = "block";
+        snapButton.style.display = "inline-block";
+        downloadLink.style.display = "none";
+        retakeButton.style.display = "none";
+        confirmationMessage.style.display = "none";
+      });
+    });
+  </script>
+</body>
+</html>
